@@ -4,7 +4,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"math"
 	"os"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -35,6 +37,17 @@ func NewTlsConfig() *tls.Config {
 	}
 }
 
+func Subscribe(client mqtt.Client, topic string, qos byte, handler mqtt.MessageHandler) {
+	if token := client.Subscribe(topic, qos, handler); token.Wait() && token.Error() != nil {
+		fmt.Println(token.Error())
+	}
+}
+
+func Publish(client mqtt.Client, qos byte, msg string) {
+	if token := client.Publish("s/us", qos, false, msg); token.Wait() && token.Error() != nil {
+		fmt.Println(token.Error())
+	}
+}
 func main() {
 	host := "mqtt.eu-latest.cumulocity.com"
 	client_id := "my_super_client_id_1337"
@@ -97,6 +110,17 @@ func main() {
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
+	Subscribe(client, "s/ds", 0, publishHandler)
+	Subscribe(client, "s/e", 0, publishHandler)
 	fmt.Println("Sample Publisher Started")
-	println("Somehow i got here. Seems like i am connected")
+	Publish(client, 2, NewDevice(client_id, "my_mqtt_device_type"))
+	timer := time.NewTicker(1 * time.Second)
+	for range timer.C {
+		value := math.Sin(float64(time.Now().Second()) * 2 * math.Pi / 60)
+		m := Measurement("c8y_NewMeasurement", "Tests", "s", "", value)
+		Publish(client, 0, m)
+	}
+
+	println("Somehow i got here. Seems like i am done here. Ciao")
+
 }
